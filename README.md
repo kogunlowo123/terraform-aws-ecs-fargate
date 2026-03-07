@@ -2,6 +2,66 @@
 
 A production-ready Terraform module for deploying containerized applications on **AWS ECS Fargate** with built-in support for service discovery, autoscaling, deployment circuit breaker, blue/green deployments, and Container Insights.
 
+## Architecture Diagram
+
+```mermaid
+flowchart TB
+    subgraph LB["Load Balancer"]
+        ALB["Application\nLoad Balancer"]
+        TG["Target Group"]
+    end
+
+    subgraph Cluster["ECS Cluster"]
+        SERVICE["ECS Service\n(Circuit Breaker)"]
+        subgraph Tasks["Fargate Tasks"]
+            TASK1["Task 1\n(Container)"]
+            TASK2["Task 2\n(Container)"]
+            TASKN["Task N\n(Container)"]
+        end
+        TASKDEF["Task Definition\n(CPU / Memory / Secrets)"]
+    end
+
+    subgraph Scaling["Auto Scaling"]
+        AUTOSCALE["Target Tracking\n(CPU Utilization)"]
+    end
+
+    subgraph Discovery["Service Discovery"]
+        CLOUDMAP["AWS Cloud Map\n(DNS-based)"]
+    end
+
+    subgraph IAM["IAM Roles"]
+        EXECROLE["Task Execution Role\n(Image Pull / Secrets)"]
+        TASKROLE["Task Role\n(App Permissions)"]
+    end
+
+    subgraph Observability["Observability"]
+        CWLOGS["CloudWatch Logs"]
+        INSIGHTS["Container Insights"]
+    end
+
+    ALB --> TG
+    TG --> SERVICE
+    SERVICE --> TASK1
+    SERVICE --> TASK2
+    SERVICE --> TASKN
+    TASKDEF --> SERVICE
+    AUTOSCALE --> SERVICE
+    SERVICE --> CLOUDMAP
+    EXECROLE --> SERVICE
+    TASKROLE --> SERVICE
+    TASK1 --> CWLOGS
+    TASK2 --> CWLOGS
+    TASKN --> CWLOGS
+    Cluster --> INSIGHTS
+
+    style LB fill:#FF9900,color:#fff
+    style Cluster fill:#0078D4,color:#fff
+    style Scaling fill:#3F8624,color:#fff
+    style Discovery fill:#8C4FFF,color:#fff
+    style IAM fill:#DD344C,color:#fff
+    style Observability fill:#FF9900,color:#fff
+```
+
 ## Features
 
 - **ECS Cluster** with optional CloudWatch Container Insights

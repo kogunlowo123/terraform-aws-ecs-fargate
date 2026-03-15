@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>terraform-aws-ecs-fargate | Architecture Document</title>
+<style>
+  :root {
+    --ink: #0b0c0b;
+    --accent: #c8420a;
+    --text: #d4d4d4;
+    --text-muted: #888;
+    --surface: #141514;
+    --surface-alt: #1a1b1a;
+    --border: #2a2b2a;
+    --success: #2ea043;
+    --warning: #d29922;
+    --info: #388bfd;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+    background: var(--ink);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  h1, h2, h3 { color: #fff; font-weight: 600; }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; border-bottom: 3px solid var(--accent); padding-bottom: 0.75rem; }
+  h2 { font-size: 1.4rem; margin: 2.5rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
+
+  .subtitle { color: var(--accent); font-size: 0.95rem; margin-bottom: 2rem; }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  .card .metric {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .card .label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+  }
+
+  .exec-summary {
+    background: var(--surface);
+    border-left: 4px solid var(--accent);
+    padding: 1.5rem;
+    border-radius: 0 8px 8px 0;
+    margin: 1.5rem 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+
+  th {
+    background: var(--surface);
+    color: var(--accent);
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid var(--accent);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tr:hover td { background: var(--surface-alt); }
+
+  .arch-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+
+  .flow-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    min-width: 800px;
+  }
+
+  .flow-row {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .flow-box {
+    background: var(--surface-alt);
+    border: 2px solid var(--accent);
+    border-radius: 6px;
+    padding: 0.75rem 1.25rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #fff;
+    min-width: 140px;
+  }
+
+  .flow-box.primary {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .flow-box.secondary {
+    border-color: var(--info);
+    background: rgba(56, 139, 253, 0.1);
+  }
+
+  .flow-box.tertiary {
+    border-color: var(--success);
+    background: rgba(46, 160, 67, 0.1);
+  }
+
+  .flow-arrow {
+    color: var(--accent);
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+
+  .checklist {
+    list-style: none;
+    padding: 0;
+  }
+
+  .checklist li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .checklist li::before {
+    content: '';
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--success);
+    border-radius: 3px;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin: 0.15rem;
+  }
+
+  .tag-healthcare { background: rgba(56, 139, 253, 0.15); color: var(--info); border: 1px solid var(--info); }
+  .tag-finance { background: rgba(210, 153, 34, 0.15); color: var(--warning); border: 1px solid var(--warning); }
+  .tag-government { background: rgba(200, 66, 10, 0.15); color: var(--accent); border: 1px solid var(--accent); }
+  .tag-retail { background: rgba(46, 160, 67, 0.15); color: var(--success); border: 1px solid var(--success); }
+  .tag-saas { background: rgba(163, 113, 247, 0.15); color: #a371f7; border: 1px solid #a371f7; }
+
+  .industry-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  .industry-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+  }
+
+  .industry-card h4 { margin-bottom: 0.5rem; color: #fff; }
+  .industry-card p { font-size: 0.85rem; color: var(--text-muted); }
+
+  code {
+    background: var(--surface);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: var(--accent);
+  }
+
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin: 1rem 0;
+  }
+
+  .links-section a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+
+  .links-section a:hover { border-bottom-color: var(--accent); }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+
+  .data-flow-step {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 0.75rem 0;
+  }
+
+  .step-num {
+    background: var(--accent);
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .security-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 0.75rem 0;
+  }
+
+  .security-item h4 { color: var(--accent); font-size: 0.95rem; margin-bottom: 0.35rem; }
+  .security-item p { font-size: 0.85rem; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<h1>terraform-aws-ecs-fargate</h1>
+<div class="subtitle">Architecture Document &mdash; Production-Ready AWS ECS Fargate Container Platform</div>
+
+<!-- Executive Summary -->
+<h2>Executive Summary</h2>
+<div class="exec-summary">
+  <p>A production-ready Terraform module for deploying containerized applications on AWS ECS Fargate with built-in support for service discovery (AWS Cloud Map), application auto scaling based on CPU utilization, deployment circuit breaker with automatic rollback, blue/green deployments via ALB target group integration, Container Insights, ECS Exec for interactive debugging, and IAM roles for both task execution (image pull, secrets) and task-level application permissions. The module manages the full stack from cluster to service with CloudWatch log integration.</p>
+</div>
+
+<!-- Overview Cards -->
+<h2>Overview</h2>
+<div class="card-grid">
+  <div class="card">
+    <div class="metric">12</div>
+    <div class="label">Resources</div>
+  </div>
+  <div class="card">
+    <div class="metric">18</div>
+    <div class="label">Variables</div>
+  </div>
+  <div class="card">
+    <div class="metric">16</div>
+    <div class="label">Outputs</div>
+  </div>
+  <div class="card">
+    <div class="metric">3</div>
+    <div class="label">IAM Roles</div>
+  </div>
+</div>
+
+<!-- Architecture Diagram -->
+<h2>Architecture Diagram</h2>
+<div class="arch-diagram">
+  <div class="flow-container">
+    <div class="flow-row">
+      <div class="flow-box secondary">ALB / NLB<br><small>Load Balancer</small></div>
+    </div>
+    <div class="flow-arrow">|</div>
+    <div class="flow-row">
+      <div class="flow-box">Target Group<br><small>Health checks</small></div>
+    </div>
+    <div class="flow-arrow">|</div>
+    <div class="flow-row">
+      <div class="flow-box primary">ECS Service<br><small>Circuit Breaker + Rollback</small></div>
+    </div>
+    <div class="flow-arrow">|</div>
+    <div class="flow-row">
+      <div class="flow-box tertiary">Fargate Task 1<br><small>Container(s)</small></div>
+      <div class="flow-box tertiary">Fargate Task 2<br><small>Container(s)</small></div>
+      <div class="flow-box tertiary">Fargate Task N<br><small>Container(s)</small></div>
+    </div>
+    <div class="flow-arrow">|</div>
+    <div class="flow-row">
+      <div class="flow-box">Task Definition<br><small>CPU / Memory / Secrets</small></div>
+      <div class="flow-box secondary">Auto Scaling<br><small>CPU target tracking</small></div>
+      <div class="flow-box secondary">Cloud Map<br><small>Service discovery</small></div>
+    </div>
+    <div class="flow-arrow">|</div>
+    <div class="flow-row">
+      <div class="flow-box">Execution Role<br><small>Image pull + secrets</small></div>
+      <div class="flow-box">Task Role<br><small>App permissions</small></div>
+      <div class="flow-box tertiary">CloudWatch Logs<br><small>Container Insights</small></div>
+      <div class="flow-box">Security Group<br><small>Container port</small></div>
+    </div>
+  </div>
+</div>
+
+<!-- Component Breakdown -->
+<h2>Component Breakdown</h2>
+<table>
+  <thead>
+    <tr><th>Resource</th><th>Type</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>aws_ecs_cluster.this</code></td><td>resource</td><td>ECS cluster with optional Container Insights</td></tr>
+    <tr><td><code>aws_ecs_task_definition.this</code></td><td>resource</td><td>Fargate task definition with multi-container support</td></tr>
+    <tr><td><code>aws_ecs_service.this</code></td><td>resource</td><td>ECS service with circuit breaker and LB integration</td></tr>
+    <tr><td><code>aws_security_group.ecs_service</code></td><td>resource</td><td>Security group scoped to container port</td></tr>
+    <tr><td><code>aws_cloudwatch_log_group.this</code></td><td>resource</td><td>CloudWatch log group for container logs</td></tr>
+    <tr><td><code>aws_service_discovery_service.this</code></td><td>resource</td><td>AWS Cloud Map service for DNS-based discovery</td></tr>
+    <tr><td><code>aws_appautoscaling_target.this</code></td><td>resource</td><td>Auto scaling target for ECS service</td></tr>
+    <tr><td><code>aws_appautoscaling_policy.cpu</code></td><td>resource</td><td>CPU-based target tracking scaling policy</td></tr>
+    <tr><td><code>aws_iam_role.task_execution</code></td><td>resource</td><td>Task execution role (ECR pull, secrets access)</td></tr>
+    <tr><td><code>aws_iam_role.task</code></td><td>resource</td><td>Task role for application-level permissions</td></tr>
+    <tr><td><code>aws_iam_role_policy.task_execution_extra</code></td><td>resource</td><td>SSM/Secrets Manager/KMS access for secrets injection</td></tr>
+    <tr><td><code>aws_iam_role_policy.task_exec_command</code></td><td>resource</td><td>SSM Messages permissions for ECS Exec</td></tr>
+  </tbody>
+</table>
+
+<!-- Data Flow -->
+<h2>Data Flow</h2>
+<div class="data-flow-step"><div class="step-num">1</div><div>Incoming traffic hits the ALB/NLB and is routed to the target group with health check validation.</div></div>
+<div class="data-flow-step"><div class="step-num">2</div><div>Target group forwards requests to the ECS service, which distributes across running Fargate tasks.</div></div>
+<div class="data-flow-step"><div class="step-num">3</div><div>Task execution role pulls container images from ECR and injects secrets from SSM/Secrets Manager.</div></div>
+<div class="data-flow-step"><div class="step-num">4</div><div>Containers run with the task role for application-level AWS API access (S3, DynamoDB, etc.).</div></div>
+<div class="data-flow-step"><div class="step-num">5</div><div>Container logs stream to CloudWatch Log Groups. Container Insights collects cluster-level metrics.</div></div>
+<div class="data-flow-step"><div class="step-num">6</div><div>Auto scaling adjusts desired task count based on average CPU utilization (default target: 70%).</div></div>
+<div class="data-flow-step"><div class="step-num">7</div><div>Circuit breaker monitors deployments and automatically rolls back on consecutive task failures.</div></div>
+<div class="data-flow-step"><div class="step-num">8</div><div>Cloud Map registers healthy tasks for DNS-based service-to-service discovery within the VPC.</div></div>
+
+<!-- Security Controls -->
+<h2>Security Controls</h2>
+<div class="security-item">
+  <h4>Separate Execution and Task Roles</h4>
+  <p>Task execution role handles infrastructure concerns (image pull, secrets); task role handles application permissions. Clear separation of duties.</p>
+</div>
+<div class="security-item">
+  <h4>Security Group Least Privilege</h4>
+  <p>Security group allows inbound traffic only on the configured container port. Egress is open for outbound connectivity.</p>
+</div>
+<div class="security-item">
+  <h4>Secrets Injection via SSM/Secrets Manager</h4>
+  <p>Sensitive configuration is injected at runtime from SSM Parameter Store or Secrets Manager, never baked into images.</p>
+</div>
+<div class="security-item">
+  <h4>Deployment Circuit Breaker</h4>
+  <p>Enabled by default with automatic rollback, preventing bad deployments from taking down the service.</p>
+</div>
+<div class="security-item">
+  <h4>Private Networking</h4>
+  <p>Tasks run in private subnets by default (<code>assign_public_ip = false</code>), requiring NAT or VPC endpoints for outbound access.</p>
+</div>
+
+<!-- Industry Adaptation -->
+<h2>Industry Adaptation</h2>
+<div class="industry-grid">
+  <div class="industry-card">
+    <h4><span class="tag tag-healthcare">Healthcare</span></h4>
+    <p>Private subnet deployment with no public IPs. Secrets injection for PHI-related credentials. CloudWatch logs with configurable retention for audit trails.</p>
+  </div>
+  <div class="industry-card">
+    <h4><span class="tag tag-finance">Finance</span></h4>
+    <p>Circuit breaker prevents trading system outages from bad deployments. Auto scaling handles market-hours traffic. Service discovery for microservice mesh.</p>
+  </div>
+  <div class="industry-card">
+    <h4><span class="tag tag-government">Government</span></h4>
+    <p>Fargate removes host management burden for FedRAMP. IAM role separation satisfies NIST access control requirements. Container Insights for continuous monitoring.</p>
+  </div>
+  <div class="industry-card">
+    <h4><span class="tag tag-retail">Retail</span></h4>
+    <p>Auto scaling from 1 to N tasks for seasonal demand. Blue/green deployments for zero-downtime releases. Multi-container sidecar pattern for caching proxies.</p>
+  </div>
+  <div class="industry-card">
+    <h4><span class="tag tag-saas">SaaS</span></h4>
+    <p>Cloud Map for internal service discovery across microservices. ECS Exec for live debugging without SSH. CPU-based scaling for multi-tenant workloads.</p>
+  </div>
+</div>
+
+<!-- Production Readiness Checklist -->
+<h2>Production Readiness Checklist</h2>
+<ul class="checklist">
+  <li>Enable deployment circuit breaker with automatic rollback</li>
+  <li>Configure auto scaling with appropriate min/max capacity and CPU target</li>
+  <li>Enable Container Insights for cluster-level metrics and anomaly detection</li>
+  <li>Set CloudWatch log retention to meet compliance requirements</li>
+  <li>Use private subnets with NAT gateway for outbound access</li>
+  <li>Inject secrets via SSM Parameter Store or Secrets Manager (never environment variables)</li>
+  <li>Configure health check path to match application readiness endpoint</li>
+  <li>Set appropriate task CPU and memory for the workload profile</li>
+  <li>Enable service discovery for internal service-to-service communication</li>
+  <li>Test rollback behavior by deploying a known-bad container image</li>
+</ul>
+
+<!-- Configuration Reference -->
+<h2>Configuration Reference</h2>
+<table>
+  <thead>
+    <tr><th>Variable</th><th>Type</th><th>Default</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>cluster_name</code></td><td>string</td><td>required</td><td>Name of the ECS cluster</td></tr>
+    <tr><td><code>service_name</code></td><td>string</td><td>required</td><td>Name of the ECS service</td></tr>
+    <tr><td><code>task_cpu</code></td><td>number</td><td><code>256</code></td><td>CPU units for Fargate task</td></tr>
+    <tr><td><code>task_memory</code></td><td>number</td><td><code>512</code></td><td>Memory (MiB) for Fargate task</td></tr>
+    <tr><td><code>container_definitions</code></td><td>any</td><td>required</td><td>List of container definition objects</td></tr>
+    <tr><td><code>vpc_id</code></td><td>string</td><td>required</td><td>VPC ID for the ECS service</td></tr>
+    <tr><td><code>subnet_ids</code></td><td>list(string)</td><td>required</td><td>Subnet IDs for the ECS tasks</td></tr>
+    <tr><td><code>container_port</code></td><td>number</td><td><code>80</code></td><td>Container port for LB and SG</td></tr>
+    <tr><td><code>lb_target_group_arn</code></td><td>string</td><td><code>""</code></td><td>ALB/NLB target group ARN</td></tr>
+    <tr><td><code>enable_autoscaling</code></td><td>bool</td><td><code>false</code></td><td>Enable Application Auto Scaling</td></tr>
+    <tr><td><code>min_capacity</code></td><td>number</td><td><code>1</code></td><td>Minimum task count</td></tr>
+    <tr><td><code>max_capacity</code></td><td>number</td><td><code>4</code></td><td>Maximum task count</td></tr>
+    <tr><td><code>target_cpu_utilization</code></td><td>number</td><td><code>70</code></td><td>Target CPU % for autoscaling</td></tr>
+    <tr><td><code>enable_circuit_breaker</code></td><td>bool</td><td><code>true</code></td><td>Enable deployment circuit breaker</td></tr>
+    <tr><td><code>enable_service_discovery</code></td><td>bool</td><td><code>false</code></td><td>Enable Cloud Map discovery</td></tr>
+    <tr><td><code>enable_container_insights</code></td><td>bool</td><td><code>true</code></td><td>Enable Container Insights</td></tr>
+    <tr><td><code>log_retention_days</code></td><td>number</td><td><code>30</code></td><td>CloudWatch log retention in days</td></tr>
+    <tr><td><code>tags</code></td><td>map(string)</td><td><code>{}</code></td><td>Tags for all resources</td></tr>
+  </tbody>
+</table>
+
+<!-- Deployment -->
+<h2>Deployment</h2>
+<pre>
+# Clone the repository
+git clone https://github.com/kogunlowo123/terraform-aws-ecs-fargate.git
+cd terraform-aws-ecs-fargate
+
+# Initialize Terraform
+terraform init
+
+# Review the execution plan
+terraform plan
+
+# Apply the configuration
+terraform apply
+
+# To destroy all resources
+terraform destroy
+</pre>
+
+<!-- Links -->
+<h2>Links</h2>
+<div class="links-section">
+  <p><a href="https://github.com/kogunlowo123/terraform-aws-ecs-fargate">GitHub Repository</a></p>
+  <p><a href="https://github.com/kogunlowo123/terraform-aws-ecs-fargate/blob/main/README.md">README.md</a></p>
+  <p><a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/">AWS ECS Documentation</a></p>
+</div>
+
+<!-- Footer -->
+<footer>
+  <p>Generated on 2026-03-15 &mdash; terraform-aws-ecs-fargate Architecture Document</p>
+  <p>Terraform >= 1.5.0 &bull; AWS Provider >= 5.0</p>
+</footer>
+
+</body>
+</html>

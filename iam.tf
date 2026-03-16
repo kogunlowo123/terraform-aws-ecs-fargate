@@ -18,7 +18,7 @@ resource "aws_iam_role" "task_execution" {
     ]
   })
 
-  tags = local.common_tags
+  tags = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "task_execution" {
@@ -26,7 +26,6 @@ resource "aws_iam_role_policy_attachment" "task_execution" {
   policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Allow the execution role to pull secrets from SSM / Secrets Manager
 resource "aws_iam_role_policy" "task_execution_extra" {
   name_prefix = "${var.service_name}-exec-extra-"
   role        = aws_iam_role.task_execution.id
@@ -67,10 +66,9 @@ resource "aws_iam_role" "task" {
     ]
   })
 
-  tags = local.common_tags
+  tags = var.tags
 }
 
-# When ECS Exec is enabled, attach the required SSM permissions
 resource "aws_iam_role_policy" "task_exec_command" {
   count       = var.enable_execute_command ? 1 : 0
   name_prefix = "${var.service_name}-exec-cmd-"

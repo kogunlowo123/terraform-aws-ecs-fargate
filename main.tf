@@ -5,7 +5,7 @@
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/ecs/${var.cluster_name}/${var.service_name}"
   retention_in_days = var.log_retention_days
-  tags              = local.common_tags
+  tags              = var.tags
 }
 
 ########################################
@@ -20,7 +20,7 @@ resource "aws_ecs_cluster" "this" {
     value = var.enable_container_insights ? "enabled" : "disabled"
   }
 
-  tags = local.common_tags
+  tags = var.tags
 }
 
 ########################################
@@ -36,9 +36,71 @@ resource "aws_ecs_task_definition" "this" {
   execution_role_arn       = aws_iam_role.task_execution.arn
   task_role_arn            = aws_iam_role.task.arn
 
-  container_definitions = local.rendered_container_definitions
+  container_definitions = jsonencode([
+    for cd in var.container_definitions : merge(
+      {
+        name      = cd.name
+        image     = cd.image
+        cpu       = try(cd.cpu, 0)
+        memory    = try(cd.memory, null)
+        essential = try(cd.essential, true)
 
-  tags = local.common_tags
+        portMappings = try([
+          for pm in cd.port_mappings : {
+            containerPort = pm.containerPort
+            hostPort      = try(pm.hostPort, pm.containerPort)
+            protocol      = try(pm.protocol, "tcp")
+          }
+        ], [])
+
+        environment = try([
+          for env in cd.environment : {
+            name  = env.name
+            value = env.value
+          }
+        ], [])
+
+        secrets = try([
+          for s in cd.secrets : {
+            name      = s.name
+            valueFrom = s.valueFrom
+          }
+        ], [])
+
+        command    = try(cd.command, null)
+        entryPoint = try(cd.entry_point, null)
+
+        dependsOn = try([
+          for d in cd.depends_on : {
+            containerName = d.containerName
+            condition     = d.condition
+          }
+        ], null)
+
+        mountPoints = try(cd.mount_points, [])
+        volumesFrom = try(cd.volumes_from, [])
+
+        healthCheck = try(cd.health_check, null) != null ? {
+          command     = cd.health_check.command
+          interval    = try(cd.health_check.interval, 30)
+          timeout     = try(cd.health_check.timeout, 5)
+          retries     = try(cd.health_check.retries, 3)
+          startPeriod = try(cd.health_check.startPeriod, 0)
+        } : null
+
+        logConfiguration = try(cd.log_configuration, null) != null ? cd.log_configuration : {
+          logDriver = "awslogs"
+          options = {
+            "awslogs-group"         = aws_cloudwatch_log_group.this.name
+            "awslogs-region"        = data.aws_region.current.name
+            "awslogs-stream-prefix" = cd.name
+          }
+        }
+      }
+    )
+  ])
+
+  tags = var.tags
 }
 
 ########################################
@@ -66,7 +128,7 @@ resource "aws_security_group" "ecs_service" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = merge(local.common_tags, {
+  tags = merge(var.tags, {
     Name = "${var.service_name}-ecs"
   })
 
@@ -94,7 +156,6 @@ resource "aws_ecs_service" "this" {
     assign_public_ip = var.assign_public_ip
   }
 
-  # Deployment configuration with circuit breaker
   deployment_configuration {
     maximum_percent         = 200
     minimum_healthy_percent = 100
@@ -108,17 +169,15 @@ resource "aws_ecs_service" "this" {
     }
   }
 
-  # Load balancer attachment (optional)
   dynamic "load_balancer" {
     for_each = var.lb_target_group_arn != "" ? [1] : []
     content {
       target_group_arn = var.lb_target_group_arn
-      container_name   = local.primary_container_name
+      container_name   = var.container_definitions[0].name
       container_port   = var.container_port
     }
   }
 
-  # Service discovery (optional)
   dynamic "service_registries" {
     for_each = var.enable_service_discovery ? [1] : []
     content {
@@ -126,12 +185,11 @@ resource "aws_ecs_service" "this" {
     }
   }
 
-  # Ignore desired_count changes when autoscaling is managing it
   lifecycle {
     ignore_changes = [desired_count]
   }
 
-  tags = local.common_tags
+  tags = var.tags
 }
 
 ########################################
@@ -158,7 +216,7 @@ resource "aws_service_discovery_service" "this" {
     failure_threshold = 1
   }
 
-  tags = local.common_tags
+  tags = var.tags
 }
 
 ########################################

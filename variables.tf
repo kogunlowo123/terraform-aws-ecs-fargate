@@ -33,24 +33,7 @@ variable "task_memory" {
 }
 
 variable "container_definitions" {
-  description = <<-EOT
-    List of container definition objects. Each object supports:
-      - name              (string, required)
-      - image             (string, required)
-      - cpu               (number, optional)
-      - memory            (number, optional)
-      - essential         (bool, optional, default true)
-      - port_mappings     (list of objects with containerPort, protocol, optional hostPort)
-      - environment       (list of objects with name, value)
-      - secrets           (list of objects with name, valueFrom)
-      - health_check      (object with command, interval, timeout, retries, startPeriod)
-      - mount_points      (list of objects)
-      - volumes_from      (list of objects)
-      - command           (list of strings)
-      - entry_point       (list of strings)
-      - depends_on        (list of objects with containerName, condition)
-      - log_configuration (object — overrides the default awslogs configuration)
-  EOT
+  description = "List of container definition objects for the task."
   type        = any
 }
 
@@ -139,13 +122,13 @@ variable "enable_execute_command" {
 ########################################
 
 variable "lb_target_group_arn" {
-  description = "ARN of the ALB/NLB target group. Leave empty to skip LB attachment."
+  description = "ARN of the ALB/NLB target group; leave empty to skip LB attachment."
   type        = string
   default     = ""
 }
 
 variable "container_port" {
-  description = "Container port exposed by the primary container (used for LB and SG)."
+  description = "Container port exposed by the primary container."
   type        = number
   default     = 80
 }

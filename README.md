@@ -1,3 +1,9 @@
+![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.5-blueviolet?logo=terraform)
+![AWS](https://img.shields.io/badge/AWS-FF9900?logo=amazonaws&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
+![CI](https://img.shields.io/github/actions/workflow/status/kogunlowo123/terraform-aws-ecs-fargate/terraform-ci.yml?label=CI)
+![GitHub release](https://img.shields.io/github/v/release/kogunlowo123/terraform-aws-ecs-fargate)
+
 # terraform-aws-ecs-fargate
 
 A production-ready Terraform module for deploying containerized applications on **AWS ECS Fargate** with built-in support for service discovery, autoscaling, deployment circuit breaker, blue/green deployments, and Container Insights.
